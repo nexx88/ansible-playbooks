@@ -1,0 +1,22 @@
+[docker_swarm_manager]
+swm01.acme.com
+swm02.acme.com
+swm03.acme.com
+
+[docker_swarm_worker]
+sww01.acme.com
+sww02.acme.com
+sww03.acme.com
+sww04.acme.com
+sww05.acme.com
+
+[esx]
+esx01.acme.com
+esx02.acme.com
+esx03.acme.com
+esx04.acme.com
+
+[esx:vars]
+ansible_user=root
+ansible_ssh_pass=*********
+ansible_ssh_common_args="-o StrictHostKeyChecking=no"

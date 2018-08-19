@@ -1,0 +1,22 @@
+--- 
+- hosts: all
+  vars:
+    canary_max_ttl: 10800
+  tasks:
+    - name: 'Make sure that the Docker daemon is running'
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+      become: true
+
+    - name: Copy canary cleanup shell script to remote
+      copy: 
+        src: canary-cleanup.sh
+        dest: /usr/local/sbin/canary-cleanup.sh
+        group: docker
+        mode: 0750
+      become: true
+
+    - name: Perform canary cleanup
+      command: /usr/local/sbin/canary-cleanup.sh {{ canary_max_ttl }}

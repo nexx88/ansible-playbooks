@@ -1,0 +1,21 @@
+- name: Identify swarm members
+  hosts: all
+  tasks:
+    - name: Get swarm members
+      shell: docker node ls --format '{{ '{{' }} .Status {{ '}}' }} {{ '{{' }} .Hostname {{ '}}' }}' \
+        | grep -e '^Ready' \
+        | awk '{ print $2 }'
+      register: nodeslist
+    - name: Add swarm hosts
+      add_host:
+        name: "{{ item }}"
+        groups: swarm_members
+      with_items: "{{ nodeslist.stdout_lines }}"
+
+- name: Prune docker
+  serial: 1
+  hosts: swarm_members
+  tasks:
+    - name: 'Run a docker prune'
+      command: docker system prune -af
+      failed_when: False

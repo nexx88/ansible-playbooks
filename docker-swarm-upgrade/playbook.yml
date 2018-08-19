@@ -1,0 +1,100 @@
+- name: Identify swarm nodes
+  hosts: all
+  tasks:
+    - name: Sanity check - only work on one swarm manager at a time
+      fail:
+        msg: "Please only have one host in inventory for this playbook. It should be a swarm manager"
+      when: ansible_play_hosts|length > 1
+      run_once: True
+
+    - name: Get swarm members
+      shell: docker node ls --format '{{ '{{' }} .Hostname {{ '}}' }}'
+      register: nodeslist
+
+    - name: Add swarm hosts
+      add_host:
+        name: "{{ item }}"
+        groups: swarm_members
+        manager_node: "{{ ansible_fqdn }}"
+      with_items: "{{ nodeslist.stdout_lines }}"
+
+- name: Upgrade docker
+  hosts: swarm_members
+  serial: 1
+  max_fail_percentage: 0
+  vars:
+    docker_version: ''
+    install_candidate: "{{ installable_vers | map('regex_search', '^{}.*$'.format(docker_version | regex_escape)) | max }}"
+  tasks:
+    - name: Install yum-utils
+      yum:
+        name: yum-utils
+      become: true
+
+    - name: Find available versions
+      yum:
+        list: docker-ce
+      register: vers_avail
+
+    - set_fact:
+        installable_vers: "{{ vers_avail.results | selectattr('yumstate','equalto', 'available') | map(attribute='version') | list | unique }}"
+        installed_vers: "{{ vers_avail.results | selectattr('yumstate','equalto', 'installed') | first }}"
+
+    - name: Fail if no install candidate
+      fail:
+        msg: "No installation candidate! Available versions are: {{ installable_vers | join(', ') }}"
+      when: not install_candidate
+
+    - block:
+      - name: Set availability to Drain
+        command: docker node update "{{ inventory_hostname }}" --availability drain
+        delegate_to: "{{ manager_node }}"
+
+      - name: Wait for containers to drain off
+        command: docker info --format '{{ '{{' }} .ContainersRunning {{ '}}' }}'
+        register: docker_info
+        until: docker_info.stdout == '0'
+        retries: 5
+        delay: 10
+        # We try to let containers drain off gracefully
+        # If not it likely means that docker is in a bad state
+        # We'll proceed with the upgrade regardless.
+        ignore_errors: true
+
+      - name: Upgrade docker
+        yum:
+          name: "docker-ce-{{ install_candidate }}"
+          state: latest
+        become: yes
+        register: yum_upgrade
+
+      - name: Reboot node
+        become: yes
+        shell: sleep 2 && /sbin/shutdown -r now "Docker upgraded"
+        async: 1
+        poll: 0
+        when: yum_upgrade.changed
+
+      - name: Wait for node to reboot
+        local_action: wait_for 
+        args:
+          host: "{{ ansible_default_ipv4.address }}"
+          port: 22 
+          state: started 
+          delay: 30
+          timeout: 300
+        when: yum_upgrade.changed
+
+      - name: Wait for node to be ready
+        command: docker node ls --format '{{ '{{' }} .Status {{ '}}' }}' -f 'name={{ inventory_hostname }}'
+        delegate_to: "{{ manager_node }}"
+        register: node_status
+        until: node_status.stdout == 'Ready'
+        retries: 5
+        delay: 10
+
+      - name: Set availability to active
+        command: docker node update "{{ inventory_hostname }}" --availability active
+        delegate_to: "{{ manager_node }}"
+      when: install_candidate | version_compare(installed_vers['version'], '>')
+

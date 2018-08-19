@@ -1,0 +1,14 @@
+- src: git@github.com:nexx88/ansible-role-dockerswarm.git
+  scm: git
+  name: ansible-role-dockerswarm
+  version: develop
+
+- src: git@github.com:nexx88/ansible-role-nfsutils.git
+  scm: git
+  name: ansible-role-nfsutils
+  version: develop
+
+- src: git@github.com:nexx88/ansible-role-vsphere-vdvs.git
+  scm: git
+  name: ansible-role-vsphere-vdvs
+  version: develop

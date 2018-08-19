@@ -1,0 +1,4 @@
+- src: git@github.com:nexx88/ansible-role-docker.git
+  scm: git
+  name: docker
+  version: develop

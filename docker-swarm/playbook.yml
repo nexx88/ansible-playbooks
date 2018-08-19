@@ -1,0 +1,16 @@
+---
+- name: "Setup Driver on ESX Cluster"
+  hosts: esx
+  serial: 1
+  roles:
+    - ansible-role-vdvs-esx
+
+- name: "Enable and start nfs-utils"
+  hosts: docker_swarm*
+  roles:
+    - ansible-role-nfsutils
+
+- name: "Provision Docker Swarm Cluster"
+  hosts: docker_swarm*
+  roles:
+    - ansible-role-docker-swarm
